@@ -19,7 +19,7 @@ import pandas as pd
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     """
     Process command line arguments.
     @return arguments
@@ -33,6 +33,8 @@ def parse_arguments():
                                                                                          '.txt and .tsv outputs will '
                                                                                          'be created from this path.')
     parser.add_argument('--pdb_dir', type=Path, default=Path('pdbs'), help='Path to cache predicted structures')
+    parser.add_argument('--copies', type=int, default=10, help='Number of copies of each author name to concatenate '
+                                                               '(default 10)')
 
     return parser.parse_args()
 
@@ -54,6 +56,10 @@ def name_to_aa(name: str, copies: int = 1) -> str:
     return name * copies
 
 
+# Could replace the API calls with local ESMFold.
+# However, the conda environment https://github.com/facebookresearch/esm/blob/main/environment.yml failed to build and
+# the Docker container https://hub.docker.com/r/athbaltzis/esmfold was automatically killed each time while downloading
+# the models.
 def write_esmfold_pdb(seq: str, pdb_dir: Path) -> Path:
     """
     Use the ESM Metagenomic Atlas API to run ESMFold and predict a protein structure from the amino acid sequence.
@@ -77,6 +83,7 @@ def write_esmfold_pdb(seq: str, pdb_dir: Path) -> Path:
         # so set verify=False
         response = requests.post('https://api.esmatlas.com/foldSequence/v1/pdb/', headers=headers, data=seq, verify=False)
 
+        # Some operating systems will raise a FileNotFoundError if the filename is too long
         with open(pdb_path, 'w') as f:
             f.write(response.text)
         print(f'Wrote {seq}.pdb')
@@ -96,19 +103,20 @@ def extract_plddt(pdb_path: Path) -> float:
     return struct.b_factor.mean()
 
 
-def fetch_pdbs(authors: Path, pdb_dir: Path) -> pd.DataFrame:
+def fetch_pdbs(authors: Path, pdb_dir: Path, copies: int = 1) -> pd.DataFrame:
     """
     For each author name, convert to an amino acid sequence, predict the protein structure with ESMFold, and extract
     the pLDDT of the predicted structure.
     :param authors: a list of authors, one per line, with no header
     :param pdb_dir: The directory in which to store the output .pdb files
+    :param copies: The number of copies to concatenate
     :return:
     """
     if not pdb_dir.exists():
         pdb_dir.mkdir(exist_ok=True)
 
     author_df = pd.read_csv(authors, header=None, names=['Authors'])
-    author_df['Seqs'] = author_df['Authors'].apply(name_to_aa, copies=1)
+    author_df['Seqs'] = author_df['Authors'].apply(name_to_aa, copies=copies)
     author_df['PDBs'] = author_df['Seqs'].apply(write_esmfold_pdb, pdb_dir=pdb_dir)
     author_df['pLDDTs'] = author_df['PDBs'].apply(extract_plddt)
 
@@ -131,16 +139,14 @@ def write_ordered_authors(pdb_df: pd.DataFrame, output: Path) -> None:
     pdb_df.to_csv(out_tsv, header=True, index=False, sep='\t')
 
 
-def main():
+def main() -> None:
     """
-    Parse arguments and author ordering
+    Parse arguments and order authors by pLDDT
     """
     args = parse_arguments()
 
-    pdb_df = fetch_pdbs(args.input, args.pdb_dir)
+    pdb_df = fetch_pdbs(args.input, args.pdb_dir, args.copies)
     write_ordered_authors(pdb_df, args.output)
-
-    # write_esmfold_pdb('MQYKLILNGKTLKGETTTEAVDAATAEKVFKQYANDNGVDGEWTYDDATKTFTVTE', args.pdb_dir)
 
 
 if __name__ == '__main__''':
