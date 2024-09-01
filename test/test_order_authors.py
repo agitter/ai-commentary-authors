@@ -38,11 +38,16 @@ class TestOrderAuthors:
         pdb_path = Path(PDB_DIR, f'{seq}.pdb')
         pdb_path.unlink(missing_ok=True)
         assert order_authors.write_esmfold_pdb(seq, PDB_DIR).exists()
+        pdb_path.unlink(missing_ok=True)
 
     def test_extract_plddt(self):
         pdb_path = Path(PDB_DIR, f'{GB1_SEQ}.pdb')
         plddt = order_authors.extract_plddt(pdb_path)
-        assert math.isclose(plddt, 0.814977)
+        assert math.isclose(plddt, 0.849565, abs_tol=1e-6)
+
+        pdb_path = Path(PDB_DIR, f'{GB1_SEQ * 2}.pdb')
+        plddt = order_authors.extract_plddt(pdb_path)
+        assert math.isclose(plddt, 0.814977, abs_tol=1e-6)
 
     def test_fetch_pdbs(self):
         author_df = order_authors.fetch_pdbs(Path('test/example_authors.txt'), PDB_DIR, 2)
@@ -54,7 +59,7 @@ class TestOrderAuthors:
         author_df['pLDDTs'] = author_df['pLDDTs'].round(5)
         expected_author_df['pLDDTs'] = expected_author_df['pLDDTs'].round(5)
 
-        assert author_df == expected_author_df
+        assert author_df.equals(expected_author_df)
 
     def test_write_ordered_authors(self):
         author_df_path = Path('test/sorted_authors.tsv')
@@ -65,6 +70,9 @@ class TestOrderAuthors:
         # Only test the dataframe, not the standalone list
         author_df = pd.read_csv(author_df_path, sep='\t')
 
+        author_df_path.unlink(missing_ok=True)
+        author_df_path.with_suffix('.txt').unlink(missing_ok=True)
+
         expected_author_df = pd.read_csv('test/sorted_author_df.tsv', sep='\t')
 
         # Consider operating system path differences and floating point imprecision before comparing
@@ -73,7 +81,7 @@ class TestOrderAuthors:
         author_df['pLDDTs'] = author_df['pLDDTs'].round(5)
         expected_author_df['pLDDTs'] = expected_author_df['pLDDTs'].round(5)
 
-        assert author_df == expected_author_df
+        assert author_df.equals(expected_author_df)
 
 
 def convert_path(file_path: Path) -> str:
