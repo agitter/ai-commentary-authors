@@ -10,8 +10,12 @@ Order authors in a file
 import argparse
 import re
 import requests
+import urllib3
 from pathlib import Path
 import pandas as pd
+
+# Disable the expected warning from write_esmfold_pdb
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 def parse_arguments():
@@ -32,26 +36,51 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def name_to_aa(name: str) -> str:
+def name_to_aa(name: str, copies: int = 1) -> str:
+    """
+    Covert an author name to an amino acid sequence. String all characters besides the 20 canonical amino acids.
+    Concatenate the specified number of copies of the amino acid sequence under the assumption that most author names
+    are very short.
+    :param name: The author name
+    :param copies: The number of copies to concatenate
+    :return: The converted, concatenated author name as an amino acid sequence
+    """
+    if copies < 1:
+        raise ValueError(f"copies must be a positive integer but was {copies}")
+
     name = name.upper()
-    return re.sub(r'[^ACDEFGHIKLMNPQRSTVWY]', '', name)
+    name = re.sub(r'[^ACDEFGHIKLMNPQRSTVWY]', '', name)
+    return name * copies
 
 
-def write_esmfold_pdb(seq: str, pdb_dir: Path) -> None:
-    # https://curlconverter.com/ to help create the request from the original curl command
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-    }
-
-    # ESM Metagenomic Atlas API https://esmatlas.com/about#api
-    # Encountered certificate issues described at https://github.com/facebookresearch/esm/discussions/665
-    # so set verify=False
-    response = requests.post('https://api.esmatlas.com/foldSequence/v1/pdb/', headers=headers, data=seq, verify=False)
-
+def write_esmfold_pdb(seq: str, pdb_dir: Path) -> Path:
+    """
+    Use the ESM Metagenomic Atlas API to run ESMFold and predict a protein structure from the amino acid sequence.
+    Store the sequence as a .pdb file. If the PDB file already exists in the pdb_dir, the API is not called again.
+    :param seq: The amino acid sequence
+    :param pdb_dir: The directory in which to store the output .pdb file. The filename will be the sequence with .pdb
+    added.
+    :return: Path to the PDB file that was written or already exists
+    """
     pdb_path = Path(pdb_dir, f'{seq}.pdb')
-    with open(pdb_path, 'w') as f:
-        f.write(response.text)
-    print(f'Wrote {seq}.pdb')
+    if pdb_path.exists():
+        print(f'{seq}.pdb already exists')
+    else:
+        # https://curlconverter.com/ to help create the request from the original curl command
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+
+        # ESM Metagenomic Atlas API https://esmatlas.com/about#api
+        # Encountered certificate issues described at https://github.com/facebookresearch/esm/discussions/665
+        # so set verify=False
+        response = requests.post('https://api.esmatlas.com/foldSequence/v1/pdb/', headers=headers, data=seq, verify=False)
+
+        with open(pdb_path, 'w') as f:
+            f.write(response.text)
+        print(f'Wrote {seq}.pdb')
+
+    return pdb_path
 
 
 def fetch_pdbs(authors: Path, pdb_dir: Path) -> pd.DataFrame:
@@ -59,7 +88,8 @@ def fetch_pdbs(authors: Path, pdb_dir: Path) -> pd.DataFrame:
         pdb_dir.mkdir(exist_ok=True)
 
     author_df = pd.read_csv(authors, header=None, names=['Authors'])
-    author_df['Seqs'] = author_df['Authors'].apply(name_to_aa)
+    author_df['Seqs'] = author_df['Authors'].apply(name_to_aa, copies=1)
+    author_df['PDBs'] = author_df['Seqs'].apply(write_esmfold_pdb, pdb_dir=pdb_dir)
 
     return author_df
 
@@ -90,7 +120,7 @@ def main():
     # pdb_df = extract_plddt(pdb_df)
     write_ordered_authors(pdb_df, args.output)
 
-    write_esmfold_pdb('MQYKLILNGKTLKGETTTEAVDAATAEKVFKQYANDNGVDGEWTYDDATKTFTVTE', args.pdb_dir)
+    # write_esmfold_pdb('MQYKLILNGKTLKGETTTEAVDAATAEKVFKQYANDNGVDGEWTYDDATKTFTVTE', args.pdb_dir)
 
 
 if __name__ == '__main__''':
