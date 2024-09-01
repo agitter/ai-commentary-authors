@@ -161,6 +161,8 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 
-# Test outputs
+# Script and test outputs
+pdbs/*
+ordered_authors.*
 test/sorted_authors.*
 test/pdbs/HITHERE.pdb
