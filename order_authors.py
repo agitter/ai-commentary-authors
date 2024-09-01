@@ -11,6 +11,7 @@ import argparse
 import re
 import requests
 import urllib3
+import biotite.structure.io as bsio
 from pathlib import Path
 import pandas as pd
 
@@ -83,13 +84,33 @@ def write_esmfold_pdb(seq: str, pdb_dir: Path) -> Path:
     return pdb_path
 
 
+def extract_plddt(pdb_path: Path) -> float:
+    """
+    Return the pLDDT from the predicted PDB structure
+    :param pdb_path: Path to the .pdb file
+    :return: pLDDT value
+    """
+    # pLDDT calculation from https://github.com/facebookresearch/esm?tab=readme-ov-file#esmfold-structure-prediction-
+    # Confirmed by discussion at https://github.com/facebookresearch/esm/discussions/608
+    struct = bsio.load_structure(str(pdb_path), extra_fields=['b_factor'])
+    return struct.b_factor.mean()
+
+
 def fetch_pdbs(authors: Path, pdb_dir: Path) -> pd.DataFrame:
+    """
+    For each author name, convert to an amino acid sequence, predict the protein structure with ESMFold, and extract
+    the pLDDT of the predicted structure.
+    :param authors: a list of authors, one per line, with no header
+    :param pdb_dir: The directory in which to store the output .pdb files
+    :return:
+    """
     if not pdb_dir.exists():
         pdb_dir.mkdir(exist_ok=True)
 
     author_df = pd.read_csv(authors, header=None, names=['Authors'])
     author_df['Seqs'] = author_df['Authors'].apply(name_to_aa, copies=1)
     author_df['PDBs'] = author_df['Seqs'].apply(write_esmfold_pdb, pdb_dir=pdb_dir)
+    author_df['pLDDTs'] = author_df['PDBs'].apply(extract_plddt)
 
     return author_df
 
@@ -105,7 +126,7 @@ def write_ordered_authors(pdb_df: pd.DataFrame, output: Path) -> None:
     out_txt = output.with_suffix('.txt')
     out_tsv = output.with_suffix('.tsv')
 
-    pdb_df = pdb_df.sort_values(by='Authors')
+    pdb_df = pdb_df.sort_values(by='pLDDTs', ascending=False)
     pdb_df['Authors'].to_csv(out_txt, header=False, index=False)
     pdb_df.to_csv(out_tsv, header=True, index=False, sep='\t')
 
@@ -117,7 +138,6 @@ def main():
     args = parse_arguments()
 
     pdb_df = fetch_pdbs(args.input, args.pdb_dir)
-    # pdb_df = extract_plddt(pdb_df)
     write_ordered_authors(pdb_df, args.output)
 
     # write_esmfold_pdb('MQYKLILNGKTLKGETTTEAVDAATAEKVFKQYANDNGVDGEWTYDDATKTFTVTE', args.pdb_dir)
