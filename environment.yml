@@ -1,0 +1,10 @@
+name: author-order
+channels:
+  - conda-forge
+dependencies:
+  - biotite=0.41.0
+  - numpy=1.26.4
+  - pandas=2.2.2
+  - pytest=8.3.2
+  - python=3.11.9
+  - requests=2.32.3
