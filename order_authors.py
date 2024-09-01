@@ -9,11 +9,12 @@ Order authors in a file
 
 import argparse
 import re
+from pathlib import Path
+
+import biotite.structure.io as bsio
+import pandas as pd
 import requests
 import urllib3
-import biotite.structure.io as bsio
-from pathlib import Path
-import pandas as pd
 
 # Disable the expected warning from write_esmfold_pdb
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -81,7 +82,8 @@ def write_esmfold_pdb(seq: str, pdb_dir: Path) -> Path:
         # ESM Metagenomic Atlas API https://esmatlas.com/about#api
         # Encountered certificate issues described at https://github.com/facebookresearch/esm/discussions/665
         # so set verify=False
-        response = requests.post('https://api.esmatlas.com/foldSequence/v1/pdb/', headers=headers, data=seq, verify=False)
+        response = requests.post('https://api.esmatlas.com/foldSequence/v1/pdb/', headers=headers, data=seq,
+                                 verify=False)
 
         # Some operating systems will raise a FileNotFoundError if the filename is too long
         with open(pdb_path, 'w') as f:

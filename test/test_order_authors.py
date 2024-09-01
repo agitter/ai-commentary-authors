@@ -3,8 +3,10 @@ Test functions for order_authors.py
 """
 
 import math
-import pytest
 from pathlib import Path
+
+import pandas as pd
+import pytest
 
 import order_authors
 
@@ -42,4 +44,44 @@ class TestOrderAuthors:
         plddt = order_authors.extract_plddt(pdb_path)
         assert math.isclose(plddt, 0.814977)
 
+    def test_fetch_pdbs(self):
+        author_df = order_authors.fetch_pdbs(Path('test/example_authors.txt'), PDB_DIR, 2)
+        expected_author_df = pd.read_csv('test/unsorted_author_df.tsv', sep='\t')
 
+        # Consider operating system path differences and floating point imprecision before comparing
+        author_df['PDBs'] = author_df['PDBs'].map(convert_path)
+        expected_author_df['PDBs'] = expected_author_df['PDBs'].map(convert_path)
+        author_df['pLDDTs'] = author_df['pLDDTs'].round(5)
+        expected_author_df['pLDDTs'] = expected_author_df['pLDDTs'].round(5)
+
+        assert author_df == expected_author_df
+
+    def test_write_ordered_authors(self):
+        author_df_path = Path('test/sorted_authors.tsv')
+        author_df = pd.read_csv('test/unsorted_author_df.tsv', sep='\t')
+        order_authors.write_ordered_authors(author_df, author_df_path)
+
+        # Read back in the sorted author list from the file
+        # Only test the dataframe, not the standalone list
+        author_df = pd.read_csv(author_df_path, sep='\t')
+
+        expected_author_df = pd.read_csv('test/sorted_author_df.tsv', sep='\t')
+
+        # Consider operating system path differences and floating point imprecision before comparing
+        author_df['PDBs'] = author_df['PDBs'].map(convert_path)
+        expected_author_df['PDBs'] = expected_author_df['PDBs'].map(convert_path)
+        author_df['pLDDTs'] = author_df['pLDDTs'].round(5)
+        expected_author_df['pLDDTs'] = expected_author_df['pLDDTs'].round(5)
+
+        assert author_df == expected_author_df
+
+
+def convert_path(file_path: Path) -> str:
+    """
+    File paths have to be converted for the stored expected output files because otherwise the dataframes may not
+    match if the test is run on a different operating system than the one used when the expected output was generated
+    due to Linux versus Windows file path conventions
+    :param file_path: input file Path
+    :return: string representation of the converted Path
+    """
+    return str(Path(file_path))
