@@ -1,0 +1,34 @@
+name: Tests
+on:
+- push
+- pull_request
+
+jobs:
+  # Installs the conda environment and runs tests
+  train:
+    name: Test author ordering
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      # Can set up package caching later conda-incubator/setup-miniconda
+    - name: Install conda environment
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        activate-environment: author-order
+        environment-file: environment.yml
+        auto-activate-base: false
+        miniforge-variant: Mambaforge
+        miniforge-version: 'latest'
+        use-mamba: true
+    - name: Run pytest
+      shell: bash --login {0}
+      run: pytest
+    - name: Run command line interface
+      shell: bash --login {0}
+      run: python order_authors.py --input test/example_authors.txt --output ordered_authors --pdb_dir test/pdbs --copies 2
