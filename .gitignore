@@ -162,7 +162,6 @@ cython_debug/
 .idea/
 
 # Script and test outputs
-pdbs/*
 ordered_authors.*
 test/sorted_authors.*
 test/pdbs/HITHERE.pdb
