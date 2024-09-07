@@ -1,5 +1,6 @@
 # "A renewed call for open artificial intelligence in biomedicine" author ordering
 [![GitHub Actions](https://github.com/agitter/ai-commentary-authors/actions/workflows/test.yml/badge.svg)](https://github.com/agitter/ai-commentary-authors/actions/workflows/test.yml)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.13723236.svg)](https://doi.org/10.5281/zenodo.13723236)
 
 This repository is used to order authors (except the first author) in the commentary manuscript "A renewed call for open artificial intelligence in biomedicine".
 The algorithm was designed in advance so that the final author order would be unknown to any of the authors, who were only told the "author list will be sorted by some unexpected, non-alphabetical key".
