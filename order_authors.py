@@ -40,39 +40,37 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def name_to_aa(name: str, copies: int = 1) -> str:
+def name_to_aa(name: str) -> str:
     """
-    Covert an author name to an amino acid sequence. String all characters besides the 20 canonical amino acids.
-    Concatenate the specified number of copies of the amino acid sequence under the assumption that most author names
-    are very short.
+    Covert an author name to an amino acid sequence. Strip all characters besides the 20 canonical amino acids.
     :param name: The author name
-    :param copies: The number of copies to concatenate
-    :return: The converted, concatenated author name as an amino acid sequence
+    :return: The converted author name as an amino acid sequence
     """
-    if copies < 1:
-        raise ValueError(f"copies must be a positive integer but was {copies}")
-
     name = name.upper()
     name = re.sub(r'[^ACDEFGHIKLMNPQRSTVWY]', '', name)
-    return name * copies
+    return name
 
 
 # Could replace the API calls with local ESMFold.
 # However, the conda environment https://github.com/facebookresearch/esm/blob/main/environment.yml failed to build and
 # the Docker container https://hub.docker.com/r/athbaltzis/esmfold was automatically killed each time while downloading
 # the models.
-def write_esmfold_pdb(seq: str, pdb_dir: Path) -> Path:
+def write_esmfold_pdb(seq: str, pdb_dir: Path, copies: int = 1) -> Path:
     """
     Use the ESM Metagenomic Atlas API to run ESMFold and predict a protein structure from the amino acid sequence.
     Store the sequence as a .pdb file. If the PDB file already exists in the pdb_dir, the API is not called again.
     :param seq: The amino acid sequence
-    :param pdb_dir: The directory in which to store the output .pdb file. The filename will be the sequence with .pdb
-    added.
+    :param pdb_dir: The directory in which to store the output .pdb file. The filename will be the sequence with the
+    number of copies and .pdb added.
+    :param copies: The number of copies to concatenate
     :return: Path to the PDB file that was written or already exists
     """
-    pdb_path = Path(pdb_dir, f'{seq}.pdb')
+    if copies < 1:
+        raise ValueError(f"copies must be a positive integer but was {copies}")
+
+    pdb_path = Path(pdb_dir, f'{seq}-{copies}.pdb')
     if pdb_path.exists():
-        print(f'{seq}.pdb already exists')
+        print(f'{seq}-{copies}.pdb already exists')
     else:
         # https://curlconverter.com/ to help create the request from the original curl command
         headers = {
@@ -82,13 +80,12 @@ def write_esmfold_pdb(seq: str, pdb_dir: Path) -> Path:
         # ESM Metagenomic Atlas API https://esmatlas.com/about#api
         # Encountered certificate issues described at https://github.com/facebookresearch/esm/discussions/665
         # so set verify=False
-        response = requests.post('https://api.esmatlas.com/foldSequence/v1/pdb/', headers=headers, data=seq,
+        response = requests.post('https://api.esmatlas.com/foldSequence/v1/pdb/', headers=headers, data=seq * copies,
                                  verify=False)
 
-        # Some operating systems will raise a FileNotFoundError if the filename is too long
         with open(pdb_path, 'w') as f:
             f.write(response.text)
-        print(f'Wrote {seq}.pdb')
+        print(f'Wrote {seq}-{copies}.pdb')
 
     return pdb_path
 
@@ -118,8 +115,8 @@ def fetch_pdbs(authors: Path, pdb_dir: Path, copies: int = 1) -> pd.DataFrame:
         pdb_dir.mkdir(exist_ok=True)
 
     author_df = pd.read_csv(authors, header=None, names=['Authors'])
-    author_df['Seqs'] = author_df['Authors'].apply(name_to_aa, copies=copies)
-    author_df['PDBs'] = author_df['Seqs'].apply(write_esmfold_pdb, pdb_dir=pdb_dir)
+    author_df['Seqs'] = author_df['Authors'].apply(name_to_aa)
+    author_df['PDBs'] = author_df['Seqs'].apply(write_esmfold_pdb, pdb_dir=pdb_dir, copies=copies)
     author_df['pLDDTs'] = author_df['PDBs'].apply(extract_plddt)
 
     return author_df

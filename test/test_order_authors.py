@@ -15,37 +15,36 @@ PDB_DIR = Path('test/pdbs/')
 
 
 class TestOrderAuthors:
-    @pytest.mark.parametrize('name, copies, seq',
-                             [("Im A.N. E'rror", 1, 'IMANERRR'),
-                              ("Im A.N. E'rror", 2, 'IMANERRRIMANERRR'),
-                              (GB1_SEQ, 1,
-                               GB1_SEQ),
-                              ('~HAL 9000~', 10, 'HALHALHALHALHALHALHALHALHALHAL')])
-    def test_name_to_aa_valid(self, name: str, copies: int, seq: str):
-        assert order_authors.name_to_aa(name, copies) == seq
-
-    def test_name_to_aa_invalid(self):
-        with pytest.raises(ValueError):
-            assert order_authors.name_to_aa('~HAL 9000~', 0)
-        with pytest.raises(ValueError):
-            assert order_authors.name_to_aa('~HAL 9000~', -1)
+    @pytest.mark.parametrize('name, seq',
+                             [("Im A.N. E'rror", 'IMANERRR'),
+                              (GB1_SEQ, GB1_SEQ),
+                              ('~HAL 9000~', 'HAL')])
+    def test_name_to_aa_valid(self, name: str, seq: str):
+        assert order_authors.name_to_aa(name) == seq
 
     def test_write_esmfold_pdb_existing(self):
-        assert order_authors.write_esmfold_pdb(GB1_SEQ, PDB_DIR).exists()
+        assert order_authors.write_esmfold_pdb(GB1_SEQ, PDB_DIR, 1).exists()
 
     def test_write_esmfold_pdb_new(self):
         seq = 'HITHERE'
-        pdb_path = Path(PDB_DIR, f'{seq}.pdb')
+        copies = 1
+        pdb_path = Path(PDB_DIR, f'{seq}-{copies}.pdb')
         pdb_path.unlink(missing_ok=True)
-        assert order_authors.write_esmfold_pdb(seq, PDB_DIR).exists()
+        assert order_authors.write_esmfold_pdb(seq, PDB_DIR, copies).exists()
         pdb_path.unlink(missing_ok=True)
 
+    def test_write_esmfold_pdb_invalid(self):
+        with pytest.raises(ValueError):
+            order_authors.write_esmfold_pdb(GB1_SEQ, PDB_DIR, 0)
+        with pytest.raises(ValueError):
+            order_authors.write_esmfold_pdb(GB1_SEQ, PDB_DIR, -1)
+
     def test_extract_plddt(self):
-        pdb_path = Path(PDB_DIR, f'{GB1_SEQ}.pdb')
+        pdb_path = Path(PDB_DIR, f'{GB1_SEQ}-1.pdb')
         plddt = order_authors.extract_plddt(pdb_path)
         assert math.isclose(plddt, 0.849565, abs_tol=1e-6)
 
-        pdb_path = Path(PDB_DIR, f'{GB1_SEQ * 2}.pdb')
+        pdb_path = Path(PDB_DIR, f'{GB1_SEQ}-2.pdb')
         plddt = order_authors.extract_plddt(pdb_path)
         assert math.isclose(plddt, 0.814977, abs_tol=1e-6)
 
